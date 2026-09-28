@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s);
-
+ 
 
 const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
 let me=null,loans=[];
