@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mintly</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#EAF5EE;color:#111827;min-height:100vh;
+background-image:radial-gradient(600px 300px at 10% -5%,#cfeedb,transparent),radial-gradient(500px 300px at 100% 0,#dff3f0,transparent)}
+.glass{background:rgba(255,255,255,.65);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.9);box-shadow:0 1px 0 rgba(17,24,39,.03)}
+.lift{transition:transform .2s,box-shadow .2s}.lift:hover{transform:translateY(-3px);box-shadow:0 12px 28px -12px rgba(17,24,39,.22)}
+.pill{background:#111827;color:#fff;border-radius:999px;transition:transform .15s,opacity .15s}.pill:active{transform:scale(.96)}
+.ghost{border:1px solid rgba(17,24,39,.12);border-radius:999px;background:rgba(255,255,255,.6)}
+.inp{width:100%;padding:.7rem .9rem;border-radius:14px;border:1px solid rgba(17,24,39,.12);background:#fff;font-size:.9rem;outline:none}
+.inp:focus{border-color:#111827;box-shadow:0 0 0 3px rgba(17,24,39,.08)}
+.badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.7rem;font-weight:700;padding:.25rem .6rem;border-radius:999px}
+.badge i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.6s infinite}
+.b-active{background:#d5f0df;color:#0f7a3d}.b-overdue{background:#fee2e2;color:#b91c1c}.b-done{background:#e5e7eb;color:#374151}.b-done i{animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 currentColor;opacity:1}70%{box-shadow:0 0 0 6px transparent;opacity:.6}100%{box-shadow:0 0 0 0 transparent;opacity:1}}
+.view{animation:fade .3s ease}@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ov{position:fixed;inset:0;background:rgba(17,24,39,.4);display:flex;align-items:flex-end;justify-content:center;animation:ovin .2s;z-index:50}
+.sheet{background:#F6FBF8;width:100%;max-width:480px;max-height:92vh;overflow:auto;border-radius:28px 28px 0 0;padding:1.25rem;animation:up .3s cubic-bezier(.2,.9,.3,1)}
+@keyframes up{from{transform:translateY(60px);opacity:0}to{transform:none;opacity:1}}@keyframes ovin{from{opacity:0}to{opacity:1}}
+@media(min-width:640px){.ov{align-items:center}.sheet{border-radius:28px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+button:focus-visible,a:focus-visible{outline:2px solid #111827;outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app" class="max-w-md mx-auto px-4 pt-6 pb-28"></div>
+<div id="modal"></div>
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 pill px-4 py-2 text-sm font-semibold opacity-0 pointer-events-none transition-opacity z-[60]"></div>
+
+<script>
+const KEY='mintly.v1',DAY=864e5,$=s=>document.querySelector(s);
+const def=()=>({wallet:0,pay:'',loans:[]});
+let S;try{S=JSON.parse(localStorage.getItem(KEY))||def()}catch{S=def()}
+let tab='active';
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch{}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>(n<0?'-':'')+'$'+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const pd=s=>new Date(s+'T00:00:00');
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10)};
+const fdate=s=>pd(s).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+const rnd=n=>[...crypto.getRandomValues(new Uint8Array(n))].map(b=>(b%36).toString(36)).join('');
+const uid=()=>rnd(16);
+const P={link:'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+edit:'M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z',plus:'M5 12h14M12 5v14',trash:'M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2',
+check:'M20 6 9 17l-5-5',cash:'M2 6h20v12H2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6'};
+const ic=(n,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${P[n]}"/></svg>`;
+
+/* Calculation: simple interest; base accrues to due date and continues after it.
+   Each overdue week adds `pen` extra % (weekly) on top: day d of overdue uses pen * ceil(d/7). */
+function calc(l){
+  const done=l.status==='done',end=done&&l.doneAt?pd(l.doneAt):today(),s=pd(l.start),due=pd(l.due);
+  const daily=l.t==='weekly'?l.r/700:l.r/3000;
+  const days=Math.max(0,Math.round((Math.min(end,due)-s)/DAY));
+  const over=Math.max(0,Math.round((end-due)/DAY));
+  const base=l.p*daily*days;
+  let extra=0;for(let d=1;d<=Math.min(over,3650);d++)extra+=l.p*(daily+(l.x/700)*Math.ceil(d/7));
+  const interest=base+extra,paid=l.paid||0;
+  return{days,over,base,extra,interest,paid,owed:Math.max(0,l.p+interest-paid),
+    st:done?'done':over>0?'overdue':'active',daysLeft:Math.round((due-end)/DAY)};
+}
+const badge=(c)=>c.st==='done'?'<span class="badge b-done"><i></i>Completed</span>':c.st==='overdue'?`<span class="badge b-overdue"><i></i>${c.over} day${c.over>1?'s':''} overdue</span>`:'<span class="badge b-active"><i></i>Active</span>';
+const init=n=>esc(n.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase()||'?');
+const avatar=n=>`<div class="w-11 h-11 rounded-full bg-[#111827] text-white grid place-items-center font-bold text-sm shrink-0">${init(n)}</div>`;
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity=0,1800)};
+
+/* Borrower snapshots are published to EdgeOne KV through /api/loan. Lender data stays in this browser. */
+const enc=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec=s=>JSON.parse(decodeURIComponent(escape(atob(s))));
+const snap=l=>({n:l.n,p:l.p,s:l.start,d:l.due,t:l.t,r:l.r,x:l.x,paid:l.paid||0,st:l.status,dn:l.doneAt||'',i:S.pay});
+async function api(method,body,id){
+  const r=await fetch('/api/loan'+(id?'?id='+encodeURIComponent(id):''),{method,headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(!r.ok)throw new Error(r.status);return r.json();
+}
+async function sync(l){if(!l||!l.shared)return true;try{await api('PUT',{id:l.id,tok:l.tok,snap:snap(l)});return true}catch{return false}}
+const syncAll=()=>S.loans.forEach(sync);
+async function copyLink(id){
+  const l=S.loans.find(x=>x.id===id);
+  if(!l.shared&&l.id.length<16)l.id=rnd(16);
+  l.tok=l.tok||rnd(24);l.shared=true;save();
+  const ok=await sync(l);
+  let u=location.origin+location.pathname+'?loan='+l.id;
+  if(!ok)u+='#d='+enc(snap(l));
+  try{await navigator.clipboard.writeText(u);toast(ok?'Borrower link copied':'Server unreachable: copied a static link')}catch{prompt('Copy this link:',u)}
+  render();
+}
+
+/* ---------- Borrower view ---------- */
+async function borrower(){
+  const id=new URLSearchParams(location.search).get('loan');
+  $('#app').innerHTML='<div class="text-center text-sm text-gray-500 pt-28">Loading loan...</div>';
+  let d=null;
+  try{d=await api('GET',null,id)}catch{}
+  if(!d)try{const h=location.hash.match(/d=([^&]+)/);if(h)d=dec(h[1])}catch{}
+  if(!d){$('#app').innerHTML=`<div class="glass rounded-3xl p-6 mt-10 view"><h1 class="text-xl font-extrabold">This loan link is not active</h1><p class="text-sm text-gray-600 mt-2">It may have been removed or copied incorrectly. Ask the person who sent it for a new link.</p></div>`;return}
+  const l={n:d.n,p:+d.p,start:d.s,due:d.d,t:d.t,r:+d.r,x:+d.x||0,paid:+d.paid||0,status:d.st==='done'?'done':'active',doneAt:d.dn||''},c=calc(l);
+  const row=(a,b,bold)=>`<div class="flex justify-between py-2 text-sm ${bold?'font-extrabold text-base':''}"><span class="${bold?'':'text-gray-500'}">${a}</span><span>${b}</span></div>`;
+  $('#app').innerHTML=`<div class="view space-y-4 pt-4">
+  <div class="text-lg font-extrabold">Mintly</div>
+  <div class="rounded-[28px] bg-[#111827] text-white p-6"><div class="text-sm opacity-70">${c.st==='done'?'Status':'Amount due today'}</div><div class="text-4xl font-extrabold mt-1">${c.st==='done'?'Paid in full':money(c.owed)}</div><div class="mt-3">${badge(c)}</div></div>
+  <div class="glass rounded-3xl p-5 divide-y divide-black/5">
+   ${row('Borrower',esc(d.n))}${row('Principal',money(l.p))}${row('Interest rate',l.r+'% / '+(l.t==='weekly'?'week':'month'))}
+   ${row('Interest accrued',money(c.base))}${c.extra?row('Overdue interest',money(c.extra)):''}${c.paid?row('Paid so far','-'+money(c.paid)):''}
+   ${row('Started',fdate(l.start))}${row('Due date',fdate(l.due))}${row(c.st==='done'?'Total paid':'Total due',money(c.st==='done'?c.paid:c.owed),true)}</div>
+  ${c.st==='overdue'?`<div class="rounded-2xl bg-red-50 text-red-800 text-sm p-4">Overdue interest rises by ${l.x}% per week past the due date. Paying sooner costs less.</div>`:''}
+  ${d.i&&c.st!=='done'?`<div class="glass rounded-3xl p-5"><div class="font-bold mb-1">How to pay</div><p class="text-sm whitespace-pre-line text-gray-700">${esc(d.i)}</p></div>`:''}
+  <p class="text-xs text-gray-500 text-center">Interest is calculated live from the lender's latest terms. A recorded payment can take up to a minute to appear.</p></div>`;
+}
+
+/* ---------- Lender view ---------- */
+function totals(){
+  const a=S.loans.filter(l=>l.status==='active').map(l=>({l,c:calc(l)}));
+  const h=S.loans.filter(l=>l.status==='done').map(l=>({l,c:calc(l)}));
+  return{a,h,principal:a.reduce((s,x)=>s+x.l.p,0),accrued:a.reduce((s,x)=>s+x.c.interest,0),earned:h.reduce((s,x)=>s+x.c.interest,0)};
+}
+function card(l,c){
+  const acts=l.status==='active'?`
+   <button onclick="copyLink('${l.id}')" class="pill text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('link',14)}Copy borrower link</button>
+   <button onclick="payment('${l.id}')" class="ghost text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('cash',14)}Payment</button>
+   <button onclick="settle('${l.id}')" class="ghost text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('check',14)}Settle</button>
+   <button aria-label="Edit" onclick="form('${l.id}')" class="ghost p-2">${ic('edit',14)}</button>`:'';
+  return `<div class="glass lift rounded-3xl p-4 view">
+  <div class="flex items-center gap-3">${avatar(l.n)}<div class="min-w-0 flex-1"><div class="font-bold truncate">${esc(l.n)}</div><div class="text-xs text-gray-500 truncate">${esc(l.note||'No contact note')}</div></div>${badge(c)}</div>
+  <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+   <div><div class="text-[11px] text-gray-500">Principal</div><div class="font-bold text-sm">${money(l.p)}</div></div>
+   <div><div class="text-[11px] text-gray-500">Interest</div><div class="font-bold text-sm">${money(c.interest)}</div></div>
+   <div><div class="text-[11px] text-gray-500">${l.status==='done'?'Received':'Owed now'}</div><div class="font-bold text-sm">${money(l.status==='done'?c.paid:c.owed)}</div></div></div>
+  <div class="text-xs text-gray-500 mt-3">${l.r}% ${l.t} · ${l.status==='done'?'Settled '+fdate(l.doneAt):'Due '+fdate(l.due)+(c.st==='active'?' ('+c.daysLeft+' days left)':'')}${l.x?' · +'+l.x+'%/wk penalty':''}</div>
+  <div class="flex flex-wrap gap-2 mt-3 items-center">${acts}<button aria-label="Delete" onclick="del('${l.id}')" class="ml-auto p-2 text-gray-400 hover:text-red-600">${ic('trash',16)}</button></div></div>`;
+}
+function render(){
+  if(new URLSearchParams(location.search).get('loan'))return borrower();
+  const T=totals(),list=tab==='active'?T.a:T.h;
+  $('#app').innerHTML=`<div class="view">
+  <div class="flex items-center justify-between mb-4"><div class="text-xl font-extrabold">Mintly</div><button onclick="settings()" class="ghost text-xs font-semibold px-3 py-2">Payment info</button></div>
+  <div class="rounded-[28px] bg-[#111827] text-white p-6 shadow-xl"><div class="text-sm opacity-70">Wallet balance</div>
+   <div class="text-4xl font-extrabold mt-1">${money(S.wallet)}</div>
+   <button onclick="wallet()" class="mt-4 bg-white/15 hover:bg-white/25 transition rounded-full text-xs font-semibold px-3 py-2">Set balance</button></div>
+  <div class="grid grid-cols-3 gap-3 mt-3">
+   ${[['Outstanding',money(T.principal)],['Interest '+(tab==='active'?'accrued':'earned'),money(tab==='active'?T.accrued:T.earned)],['Active loans',T.a.length]].map(m=>`<div class="glass rounded-2xl p-3"><div class="text-[11px] text-gray-500">${m[0]}</div><div class="font-extrabold text-sm mt-1 break-words">${m[1]}</div></div>`).join('')}</div>
+  <div class="glass rounded-full p-1 flex mt-5">${[['active','Money I am loaning'],['history','Loan history']].map(t=>`<button onclick="tab='${t[0]}';render()" class="flex-1 py-2 text-xs font-bold rounded-full transition ${tab===t[0]?'pill':''}">${t[1]}</button>`).join('')}</div>
+  <div class="space-y-3 mt-4">${list.length?list.map(x=>card(x.l,x.c)).join(''):`<div class="text-center text-sm text-gray-500 py-12">${tab==='active'?'No active loans. Tap + to add your first loan.':'Settled loans will appear here.'}</div>`}</div></div>
+  ${tab==='active'?`<button aria-label="Add loan" onclick="form()" class="pill fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3.5 flex items-center gap-2 font-bold text-sm shadow-2xl">${ic('plus',18)}New loan</button>`:''}`;
+}
+
+/* ---------- Modals & actions ---------- */
+const sheet=h=>{$('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet">${h}</div></div>`};
+const closeM=()=>$('#modal').innerHTML='';
+function form(id){
+  const l=S.loans.find(x=>x.id===id)||{n:'',note:'',p:'',start:iso(new Date()),due:iso(new Date(Date.now()+30*DAY)),t:'monthly',r:5,x:1};
+  const f=(lb,inner)=>`<label class="block text-xs font-semibold text-gray-600 mb-3">${lb}${inner}</label>`;
+  sheet(`<div class="flex justify-between items-center mb-4"><h2 class="text-lg font-extrabold">${id?'Edit loan':'New loan'}</h2><button onclick="closeM()" class="ghost px-3 py-1.5 text-xs font-semibold">Close</button></div>
+  <form onsubmit="saveLoan(event,'${id||''}')">
+  ${f('Borrower name',`<input class="inp mt-1" name="n" required value="${esc(l.n)}">`)}
+  ${f('Contact note',`<input class="inp mt-1" name="note" placeholder="Phone, email, or how you know them" value="${esc(l.note)}">`)}
+  ${f('Amount',`<input class="inp mt-1" name="p" type="number" min="0.01" step="0.01" required value="${l.p}">`)}
+  <div class="grid grid-cols-2 gap-3">${f('Start date',`<input class="inp mt-1" name="start" type="date" required value="${l.start}">`)}${f('Due date',`<input class="inp mt-1" name="due" type="date" required value="${l.due}">`)}</div>
+  <div class="grid grid-cols-2 gap-3">${f('Interest period',`<select class="inp mt-1" name="t"><option value="weekly" ${l.t==='weekly'?'selected':''}>Weekly</option><option value="monthly" ${l.t==='monthly'?'selected':''}>Monthly</option></select>`)}${f('Rate (%)',`<input class="inp mt-1" name="r" type="number" min="0" step="0.01" required value="${l.r}">`)}</div>
+  ${f('Overdue penalty: extra % added per week past due',`<input class="inp mt-1" name="x" type="number" min="0" step="0.01" value="${l.x}">`)}
+  ${id?'':`<label class="flex items-center gap-2 text-xs font-semibold mb-4"><input type="checkbox" name="ded" checked> Deduct amount from wallet</label>`}
+  <button class="pill w-full py-3.5 font-bold text-sm">${id?'Save changes':'Add loan'}</button></form>`);
+}
+function saveLoan(e,id){
+  e.preventDefault();const f=new FormData(e.target),g=k=>f.get(k);
+  if(g('due')<g('start'))return toast('Due date must be after start date');
+  const d={n:g('n').trim(),note:g('note').trim(),p:+g('p'),start:g('start'),due:g('due'),t:g('t'),r:+g('r'),x:+g('x')||0};
+  if(id)Object.assign(S.loans.find(l=>l.id===id),d);
+  else{S.loans.unshift({...d,id:uid(),status:'active',paid:0});if(g('ded'))S.wallet-=d.p}
+  save();if(id)sync(S.loans.find(l=>l.id===id));closeM();render();toast(id?'Changes saved':'Loan added');
+}
+function payment(id){
+  const l=S.loans.find(x=>x.id===id),c=calc(l);
+  const v=prompt(`Payment received from ${l.n} (owed now ${money(c.owed)}):`);if(v===null)return;
+  const a=parseFloat(v);if(!(a>0))return toast('Enter an amount above 0');
+  l.paid=(l.paid||0)+a;S.wallet+=a;save();sync(l);render();
+  toast(calc(l).owed<=0.005?'Fully paid. Tap Settle to move it to history':'Payment recorded');
+}
+function settle(id){
+  const l=S.loans.find(x=>x.id===id);l.status='done';l.doneAt=iso(new Date());
+  const c=calc(l),rest=c.owed;
+  if(!confirm(`Settle ${l.n}'s loan? ${rest>0.005?money(rest)+' still owed will be marked as received.':'Nothing further is owed.'}`)){l.status='active';delete l.doneAt;return}
+  l.paid=(l.paid||0)+rest;S.wallet+=rest;save();sync(l);tab='history';render();toast('Loan settled');
+}
+function del(id){if(!confirm('Delete this loan? This cannot be undone.'))return;const d=S.loans.find(x=>x.id===id);if(d.shared)api('DELETE',{id:d.id,tok:d.tok}).catch(()=>{});S.loans=S.loans.filter(l=>l.id!==id);save();render()}
+function wallet(){const v=prompt('Wallet balance:',S.wallet);if(v===null)return;const n=parseFloat(v);if(isNaN(n))return toast('Enter a number');S.wallet=n;save();render()}
+function settings(){
+  sheet(`<h2 class="text-lg font-extrabold mb-1">Payment instructions</h2><p class="text-xs text-gray-500 mb-3">Shown to borrowers on their link. Copy the link again after changing this.</p>
+  <textarea id="pay" rows="5" class="inp" placeholder="Bank transfer, Venmo handle, cash pickup...">${esc(S.pay)}</textarea>
+  <button onclick="S.pay=$('#pay').value;save();syncAll();closeM();toast('Saved')" class="pill w-full py-3.5 font-bold text-sm mt-3">Save</button>`);
+}
+render();
+</script>
+</body>
+</html>
