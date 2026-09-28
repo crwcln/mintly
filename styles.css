@@ -1,0 +1,24 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:linear-gradient(180deg,#EAF5EE 0%,#F4FBF6 100%) fixed;min-height:100vh;font-family:ui-sans-serif,system-ui,sans-serif;color:#374151}
+.g{background:rgba(255,255,255,.6);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.8);border-radius:1.5rem;box-shadow:0 20px 25px -5px rgba(0,0,0,.08)}
+.b{background:#111827;color:#fff;border-radius:9999px;padding:.6rem 1.25rem;font-weight:600}
+.b2{background:#fff;border:1px solid #e5e7eb;border-radius:9999px;padding:.5rem 1rem;font-weight:600;font-size:.875rem}
+.i{width:100%;border:2px solid #e5e7eb;border-radius:.75rem;padding:.6rem .8rem;background:#fff}
+h1,h2,.h{font-weight:800;color:#111827}
+input,textarea,button,select,.i{font-size:16px}
+.lift{transition:transform .25s ease,box-shadow .25s ease}
+.lift:hover{transform:translateY(-3px);box-shadow:0 25px 35px -8px rgba(5,80,60,.18)}
+.b,.b2{transition:transform .15s ease,box-shadow .2s ease,background .2s}
+.b:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(17,24,39,.25)}
+.b2:hover{background:#f0fdf4}
+.b:active,.b2:active{transform:scale(.96)}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+main>*,main .grid>*{animation:up .5s cubic-bezier(.2,.7,.2,1) backwards}
+main>*:nth-child(2){animation-delay:.06s}main>*:nth-child(3){animation-delay:.12s}main>*:nth-child(4){animation-delay:.18s}main>*:nth-child(5){animation-delay:.24s}
+main .grid>*:nth-child(2){animation-delay:.08s}main .grid>*:nth-child(3){animation-delay:.16s}main .grid>*:nth-child(4){animation-delay:.24s}
+.fade{animation:fade .2s ease}.pop{animation:pop .3s cubic-bezier(.2,.8,.2,1)}
+#mm:not(.hidden){animation:pop .2s ease}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
