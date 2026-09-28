@@ -124,7 +124,7 @@ function card(l,c){
    <button onclick="copyLink('${l.id}')" class="pill text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('link',14)}Copy borrower link</button>
    <button onclick="payment('${l.id}')" class="ghost text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('cash',14)}Payment</button>
    <button onclick="settle('${l.id}')" class="ghost text-xs font-semibold px-3 py-2 flex items-center gap-1.5">${ic('check',14)}Settle</button>
-   <button aria-label="Edit" onclick="form('${l.id}')" class="ghost p-2">${ic('edit',14)}</button>`:'';
+   <button aria-label="Edit" onclick="openForm('${l.id}')" class="ghost p-2">${ic('edit',14)}</button>`:'';
   return `<div class="glass lift rounded-3xl p-4 view">
   <div class="flex items-center gap-3">${avatar(l.n)}<div class="min-w-0 flex-1"><div class="font-bold truncate">${esc(l.n)}</div><div class="text-xs text-gray-500 truncate">${esc(l.note||'No contact note')}</div></div>${badge(c)}</div>
   <div class="grid grid-cols-3 gap-2 mt-4 text-center">
@@ -146,13 +146,13 @@ function render(){
    ${[['Outstanding',money(T.principal)],['Interest '+(tab==='active'?'accrued':'earned'),money(tab==='active'?T.accrued:T.earned)],['Active loans',T.a.length]].map(m=>`<div class="glass rounded-2xl p-3"><div class="text-[11px] text-gray-500">${m[0]}</div><div class="font-extrabold text-sm mt-1 break-words">${m[1]}</div></div>`).join('')}</div>
   <div class="glass rounded-full p-1 flex mt-5">${[['active','Money I am loaning'],['history','Loan history']].map(t=>`<button onclick="tab='${t[0]}';render()" class="flex-1 py-2 text-xs font-bold rounded-full transition ${tab===t[0]?'pill':''}">${t[1]}</button>`).join('')}</div>
   <div class="space-y-3 mt-4">${list.length?list.map(x=>card(x.l,x.c)).join(''):`<div class="text-center text-sm text-gray-500 py-12">${tab==='active'?'No active loans. Tap + to add your first loan.':'Settled loans will appear here.'}</div>`}</div></div>
-  ${tab==='active'?`<button aria-label="Add loan" onclick="form()" class="pill fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3.5 flex items-center gap-2 font-bold text-sm shadow-2xl">${ic('plus',18)}New loan</button>`:''}`;
+  ${tab==='active'?`<button aria-label="Add loan" onclick="openForm()" class="pill fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3.5 flex items-center gap-2 font-bold text-sm shadow-2xl">${ic('plus',18)}New loan</button>`:''}`;
 }
 
 /* ---------- Modals & actions ---------- */
 const sheet=h=>{$('#modal').innerHTML=`<div class="ov" onclick="if(event.target===this)closeM()"><div class="sheet">${h}</div></div>`};
 const closeM=()=>$('#modal').innerHTML='';
-function form(id){
+function openForm(id){
   const l=S.loans.find(x=>x.id===id)||{n:'',note:'',p:'',start:iso(new Date()),due:iso(new Date(Date.now()+30*DAY)),t:'monthly',r:5,x:1};
   const f=(lb,inner)=>`<label class="block text-xs font-semibold text-gray-600 mb-3">${lb}${inner}</label>`;
   sheet(`<div class="flex justify-between items-center mb-4"><h2 class="text-lg font-extrabold">${id?'Edit loan':'New loan'}</h2><button onclick="closeM()" class="ghost px-3 py-1.5 text-xs font-semibold">Close</button></div>
